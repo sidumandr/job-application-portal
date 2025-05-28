@@ -19,11 +19,11 @@ async function createAdmin() {
     const db = client.db('jobApplications');
     const adminPanel = db.collection('adminPanel');
 
-    // Önce koleksiyonu temizle
+    // clear collection
     await adminPanel.deleteMany({});
     console.log('Koleksiyon temizlendi');
 
-    // Admin kullanıcısı oluştur
+    // create admin user
     const password = 'MySecurePass123!';
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);

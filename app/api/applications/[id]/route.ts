@@ -7,7 +7,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // ID doğrulama
+    // ID validation
     if (!params.id || !ObjectId.isValid(params.id)) {
       return NextResponse.json(
         { error: 'Geçersiz başvuru ID\'si' },
@@ -36,7 +36,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting application:', error)
     
-    // MongoDB bağlantı hatası kontrolü
+    // MongoDB connection error check
     if (error instanceof Error && error.message.includes('connect')) {
       return NextResponse.json(
         { error: 'Veritabanına bağlanılamadı. Lütfen MongoDB URI\'yi kontrol edin.' },

@@ -18,7 +18,7 @@ async function initDb() {
 
     const db = client.db('jobApplications')
     
-    // Admin kullanıcısını kontrol et
+    // admin user control
     const adminCollection = db.collection('adminPanel')
     const existingAdmin = await adminCollection.findOne({ username: 'admin' })
 
@@ -37,7 +37,7 @@ async function initDb() {
       console.log('Admin user already exists')
     }
 
-    // Applications koleksiyonunu oluştur
+    // create an app collection
     const applicationsCollection = db.collection('applications')
     await applicationsCollection.createIndex({ email: 1 }, { unique: true })
     console.log('Applications collection initialized')

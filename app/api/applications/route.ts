@@ -19,7 +19,7 @@ export async function GET() {
       )
     }
 
-    // ObjectId'leri string'e çevir
+  
     const serializedApplications = applications.map(app => ({
       ...app,
       _id: app._id.toString(),
@@ -32,7 +32,7 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching applications:', error)
     
-    // MongoDB bağlantı hatası kontrolü
+    // MongoDB connection error check
     if (error instanceof Error && error.message.includes('connect')) {
       return NextResponse.json(
         { error: 'Veritabanına bağlanılamadı. Lütfen MongoDB URI\'yi kontrol edin.' },

@@ -18,12 +18,12 @@ async function testConnection() {
     const db = client.db('jobApplications')
     console.log('Successfully connected to database: jobApplications')
 
-    // Test admin collection
+    //  testing the admin collection
     const adminCollection = db.collection('adminPanel')
     const adminCount = await adminCollection.countDocuments()
     console.log('Number of admin users:', adminCount)
 
-    // Test applications collection
+    // testing the applications collection
     const applicationsCollection = db.collection('applications')
     const applicationsCount = await applicationsCollection.countDocuments()
     console.log('Number of applications:', applicationsCount)

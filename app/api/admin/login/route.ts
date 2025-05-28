@@ -3,12 +3,15 @@ import { sign } from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import clientPromise from '@/lib/mongodb'
 
-// JWT secret should be in environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-key-123'
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is not set')
+}
+
+const JWT_SECRET = process.env.JWT_SECRET
 
 export async function POST(request: Request) {
   try {
-    // Request body'yi parse et
+  
     const body = await request.json()
     console.log('Login request body:', body)
 
@@ -23,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      // MongoDB'ye bağlan
+      // db connection
       console.log('Connecting to MongoDB Atlas...')
       console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not set')
       
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
       const db = client.db('jobApplications')
       console.log('Using database: jobApplications')
       
-      // Admin kullanıcısını bul
+      // find admin user
       console.log('Finding admin user:', username)
       const admin = await db.collection('adminPanel').findOne({ username })
       console.log('Found admin:', admin ? 'Yes' : 'No')
@@ -46,7 +49,7 @@ export async function POST(request: Request) {
         )
       }
 
-      // Şifreyi kontrol et
+      // check password
       console.log('Verifying password...')
       const isValidPassword = await bcrypt.compare(password, admin.password)
       console.log('Password valid:', isValidPassword)
@@ -59,7 +62,7 @@ export async function POST(request: Request) {
         )
       }
 
-      // JWT token oluştur
+      // create JWT token
       console.log('Creating JWT token...')
       const token = sign(
         { 
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
       )
       console.log('Token created successfully')
 
-      // Response oluştur
+      // create response
       const response = NextResponse.json(
         { 
           success: true,
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
         { status: 200 }
       )
 
-      // Cookie'yi ayarla
+      // set cookie
       console.log('Setting cookie...')
       response.cookies.set({
         name: 'admin_token',
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24, // 1 gün
+        maxAge: 60 * 60 * 24, // 1 day
         path: '/'
       })
       console.log('Cookie set successfully')
