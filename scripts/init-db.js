@@ -1,9 +1,14 @@
 const { MongoClient } = require('mongodb')
-const bcrypt = require('bcryptjs')
+const bcrypt = require('bcrypt')
 require('dotenv').config({ path: '.env.local' })
 
 if (!process.env.MONGODB_URI) {
   console.error('MONGODB_URI is not defined in .env.local')
+  process.exit(1)
+}
+
+if (!process.env.ADMIN_PASSWORD) {
+  console.error('ADMIN_PASSWORD is not defined in .env.local')
   process.exit(1)
 }
 
@@ -12,30 +17,29 @@ const client = new MongoClient(uri)
 
 async function initDb() {
   try {
-    console.log('Connecting to MongoDB Atlas...')
     await client.connect()
+    console.log('Connecting to MongoDB Atlas...')
     console.log('Connected to MongoDB Atlas')
 
-    const db = client.db('jobApplications')
-    
-    // admin user control
-    const adminCollection = db.collection('adminPanel')
-    const existingAdmin = await adminCollection.findOne({ username: 'admin' })
+    const db = client.db()
+    const adminCollection = db.collection('admins')
 
-    if (!existingAdmin) {
-      console.log('Creating admin user...')
-      const hashedPassword = await bcrypt.hash('MySecurePass123!', 10)
-      
-      await adminCollection.insertOne({
-        username: 'admin',
-        password: hashedPassword,
-        role: 'admin',
-        createdAt: new Date()
-      })
-      console.log('Admin user created successfully')
-    } else {
+    // Check if admin already exists
+    const existingAdmin = await adminCollection.findOne({ username: 'admin' })
+    if (existingAdmin) {
       console.log('Admin user already exists')
+      return
     }
+
+    // Create admin user
+    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10)
+    const result = await adminCollection.insertOne({
+      username: 'admin',
+      password: hashedPassword,
+      createdAt: new Date()
+    })
+
+    console.log('Admin user created:', result.insertedId)
 
     // create an app collection
     const applicationsCollection = db.collection('applications')
@@ -44,7 +48,7 @@ async function initDb() {
 
     console.log('Database initialization completed')
   } catch (error) {
-    console.error('Database initialization failed:', error)
+    console.error('Error:', error)
   } finally {
     await client.close()
     console.log('MongoDB connection closed')

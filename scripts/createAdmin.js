@@ -2,44 +2,46 @@ require('dotenv').config({ path: '.env.local' });
 const { MongoClient } = require('mongodb');
 const bcrypt = require('bcrypt');
 
-const uri = process.env.MONGODB_URI;
-
-if (!uri) {
+if (!process.env.MONGODB_URI) {
   console.error('MONGODB_URI bulunamadı. Lütfen .env.local dosyasını kontrol edin.');
   process.exit(1);
 }
 
-async function createAdmin() {
-  const client = new MongoClient(uri);
+if (!process.env.ADMIN_PASSWORD) {
+  console.error('ADMIN_PASSWORD bulunamadı. Lütfen .env.local dosyasını kontrol edin.');
+  process.exit(1);
+}
 
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri);
+
+async function createAdmin() {
   try {
     await client.connect();
     console.log('MongoDB\'ye bağlandı');
 
-    const db = client.db('jobApplications');
-    const adminPanel = db.collection('adminPanel');
+    const db = client.db();
+    const adminCollection = db.collection('admins');
 
-    // clear collection
-    await adminPanel.deleteMany({});
-    console.log('Koleksiyon temizlendi');
+    // Check if admin already exists
+    const existingAdmin = await adminCollection.findOne({ username: 'admin' });
+    if (existingAdmin) {
+      console.log('Admin kullanıcısı zaten mevcut');
+      return;
+    }
 
-    // create admin user
-    const password = 'MySecurePass123!';
     const saltRounds = 10;
+    const password = process.env.ADMIN_PASSWORD;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    const admin = {
+    const result = await adminCollection.insertOne({
       username: 'admin',
       password: hashedPassword,
-      role: 'admin',
       createdAt: new Date()
-    };
+    });
 
-    const result = await adminPanel.insertOne(admin);
-    console.log('Admin kullanıcısı oluşturuldu:', result.insertedId);
-    console.log('Kullanıcı adı:', admin.username);
+    console.log('Admin kullanıcısı oluşturuldu');
     console.log('Şifre:', password);
-
   } catch (error) {
     console.error('Hata:', error);
   } finally {
