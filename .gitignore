@@ -39,3 +39,7 @@ next-env.d.ts
 
 
 secrets.txt
+
+# admin password 
+list-collections.js
+update-admin-password.js

@@ -1,125 +1,112 @@
 import { NextResponse } from 'next/server'
 import { sign } from 'jsonwebtoken'
-import bcrypt from 'bcryptjs'
+import bcrypt from 'bcrypt'
 import clientPromise from '@/lib/mongodb'
+import { z } from 'zod'
 
+// Environment variables check
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is not set')
 }
 
-const JWT_SECRET = process.env.JWT_SECRET
+// Input validation schema
+const loginSchema = z.object({
+  username: z.string().min(3).max(50),
+  password: z.string().min(8)
+})
+
+// Rate limiting configuration
+const RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5 // Maximum 5 attempts per IP
+}
+
+// Store failed login attempts
+const failedAttempts = new Map<string, { count: number; resetTime: number }>()
 
 export async function POST(request: Request) {
   try {
-  
     const body = await request.json()
-    console.log('Login request body:', body)
+    
+    // Input validation
+    const validatedData = loginSchema.parse(body)
+    const { username, password } = validatedData
 
-    const { username, password } = body
+    // Rate limiting check
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    const now = Date.now()
+    const attempt = failedAttempts.get(ip)
 
-    if (!username || !password) {
-      console.log('Missing username or password')
+    if (attempt && now < attempt.resetTime) {
+      if (attempt.count >= RATE_LIMIT.max) {
+        return NextResponse.json(
+          { error: 'Too many login attempts. Please try again later.' },
+          { status: 429 }
+        )
+      }
+    } else {
+      failedAttempts.set(ip, { count: 0, resetTime: now + RATE_LIMIT.windowMs })
+    }
+
+    // Database connection
+    const client = await clientPromise
+    const db = client.db()
+    const adminCollection = db.collection('adminPanel')
+
+    // Find admin user
+    const admin = await adminCollection.findOne({ username })
+    if (!admin) {
+      // Increment failed attempts
+      const currentAttempt = failedAttempts.get(ip)!
+      currentAttempt.count++
+      failedAttempts.set(ip, currentAttempt)
+
       return NextResponse.json(
-        { error: 'Kullanıcı adı ve şifre gereklidir' },
-        { status: 400 }
+        { error: 'Invalid credentials' },
+        { status: 401 }
       )
     }
 
-    try {
-      // db connection
-      console.log('Connecting to MongoDB Atlas...')
-      console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not set')
-      
-      const client = await clientPromise
-      console.log('MongoDB connected successfully')
-      
-      const db = client.db('jobApplications')
-      console.log('Using database: jobApplications')
-      
-      // find admin user
-      console.log('Finding admin user:', username)
-      const admin = await db.collection('adminPanel').findOne({ username })
-      console.log('Found admin:', admin ? 'Yes' : 'No')
+    // Password verification
+    const isValidPassword = await bcrypt.compare(password, admin.password)
+    if (!isValidPassword) {
+      // Increment failed attempts
+      const currentAttempt = failedAttempts.get(ip)!
+      currentAttempt.count++
+      failedAttempts.set(ip, currentAttempt)
 
-      if (!admin) {
-        console.log('Admin not found')
-        return NextResponse.json(
-          { error: 'Geçersiz kullanıcı adı veya şifre' },
-          { status: 401 }
-        )
-      }
-
-      // check password
-      console.log('Verifying password...')
-      const isValidPassword = await bcrypt.compare(password, admin.password)
-      console.log('Password valid:', isValidPassword)
-
-      if (!isValidPassword) {
-        console.log('Invalid password')
-        return NextResponse.json(
-          { error: 'Geçersiz kullanıcı adı veya şifre' },
-          { status: 401 }
-        )
-      }
-
-      // create JWT token
-      console.log('Creating JWT token...')
-      const token = sign(
-        { 
-          id: admin._id.toString(),
-          username: admin.username,
-          role: 'admin'
-        },
-        JWT_SECRET,
-        { expiresIn: '1d' }
-      )
-      console.log('Token created successfully')
-
-      // create response
-      const response = NextResponse.json(
-        { 
-          success: true,
-          message: 'Giriş başarılı',
-          redirectTo: '/admin'
-        },
-        { status: 200 }
-      )
-
-      // set cookie
-      console.log('Setting cookie...')
-      response.cookies.set({
-        name: 'admin_token',
-        value: token,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24, // 1 day
-        path: '/'
-      })
-      console.log('Cookie set successfully')
-
-      return response
-
-    } catch (dbError: any) {
-      console.error('Database error details:', {
-        name: dbError?.name || 'Unknown',
-        message: dbError?.message || 'No message',
-        stack: dbError?.stack || 'No stack trace'
-      })
       return NextResponse.json(
-        { error: 'Veritabanı bağlantısında hata oluştu' },
-        { status: 500 }
+        { error: 'Invalid credentials' },
+        { status: 401 }
       )
     }
 
-  } catch (error: any) {
-    console.error('Login error details:', {
-      name: error?.name || 'Unknown',
-      message: error?.message || 'No message',
-      stack: error?.stack || 'No stack trace'
+    // Reset failed attempts on successful login
+    failedAttempts.delete(ip)
+
+    // Generate JWT token
+    const token = sign(
+      { username: admin.username, role: 'admin' },
+      process.env.JWT_SECRET || '',
+      { expiresIn: '1h' }
+    )
+
+    // Set cookie with secure options
+    const response = NextResponse.json({ success: true })
+    response.cookies.set({
+      name: 'admin_token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 3600 // 1 hour
     })
+
+    return response
+  } catch (error) {
+    console.error('Login error:', error)
     return NextResponse.json(
-      { error: 'Giriş yapılırken bir hata oluştu' },
+      { error: 'An error occurred during login' },
       { status: 500 }
     )
   }

@@ -9,18 +9,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label"
 
 interface FormData {
-  fullName: string
+  name: string
   email: string
   phone: string
-  description: string
+  position: string
 }
 
 export default function ApplyPage() {
   const [formData, setFormData] = useState<FormData>({
-    fullName: '',
+    name: '',
     email: '',
     phone: '',
-    description: ''
+    position: ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
@@ -28,6 +28,27 @@ export default function ApplyPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+
+    // Client-side validation
+    if (formData.name.length < 2 || formData.name.length > 50) {
+      alert('Ad Soyad 2-50 karakter arasında olmalıdır.')
+      setIsSubmitting(false)
+      return
+    }
+
+    if (formData.position.length < 2 || formData.position.length > 100) {
+      alert('Pozisyon 2-100 karakter arasında olmalıdır.')
+      setIsSubmitting(false)
+      return
+    }
+
+    // Phone number validation (international format)
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/
+    if (!phoneRegex.test(formData.phone)) {
+      alert('Lütfen geçerli bir telefon numarası girin (örn: +905551234567)')
+      setIsSubmitting(false)
+      return
+    }
 
     try {
       const response = await fetch('/api/submit', {
@@ -38,20 +59,22 @@ export default function ApplyPage() {
         body: JSON.stringify(formData),
       })
 
+      const data = await response.json()
+
       if (response.ok) {
         setSubmitSuccess(true)
         setFormData({
-          fullName: '',
+          name: '',
           email: '',
           phone: '',
-          description: ''
+          position: ''
         })
       } else {
-        throw new Error('Form submission failed')
+        throw new Error(data.error || 'Form submission failed')
       }
     } catch (error) {
       console.error('Error submitting form:', error)
-      alert('Form gönderilirken bir hata oluştu. Lütfen tekrar deneyin.')
+      alert(error instanceof Error ? error.message : 'Form gönderilirken bir hata oluştu. Lütfen tekrar deneyin.')
     } finally {
       setIsSubmitting(false)
     }
@@ -101,13 +124,13 @@ export default function ApplyPage() {
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Ad Soyad</Label>
+                  <Label htmlFor="name">Ad Soyad</Label>
                   <Input
                     type="text"
-                    id="fullName"
-                    name="fullName"
+                    id="name"
+                    name="name"
                     required
-                    value={formData.fullName}
+                    value={formData.name}
                     onChange={handleInputChange}
                     placeholder="Adınız ve soyadınız"
                   />
@@ -135,20 +158,23 @@ export default function ApplyPage() {
                     required
                     value={formData.phone}
                     onChange={handleInputChange}
-                    placeholder="05XX XXX XX XX"
+                    placeholder="+905551234567"
                   />
+                  <p className="text-sm text-muted-foreground">
+                    Uluslararası formatta girin (örn: +905551234567)
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Açıklama</Label>
-                  <Textarea
-                    id="description"
-                    name="description"
+                  <Label htmlFor="position">Pozisyon</Label>
+                  <Input
+                    type="text"
+                    id="position"
+                    name="position"
                     required
-                    rows={4}
-                    value={formData.description}
+                    value={formData.position}
                     onChange={handleInputChange}
-                    placeholder="Kendiniz hakkında kısa bir açıklama yazın..."
+                    placeholder="Başvurmak istediğiniz pozisyon"
                   />
                 </div>
 
